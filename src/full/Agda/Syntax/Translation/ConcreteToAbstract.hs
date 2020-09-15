@@ -868,8 +868,14 @@ instance ToAbstract C.Expr where
         i       = ExprRange r
         alit    = A.Lit i l
         mkApp q = A.App (defaultAppInfo r) (A.Def q) . defaultNamedArg
+
+        -- #4925: Require fromNat/fromNeg to be in scope *unqualified* for literal overloading to
+        -- apply.
         ensureInScope :: Maybe I.Term -> ScopeM (Maybe I.Term)
-        ensureInScope v@(Just (I.Def q _)) = ifM (isNameInScope q <$> getScope) (return v) (return Nothing)
+        ensureInScope v@(Just (I.Def q _)) = do
+          inverseScopeLookupName' AmbiguousNothing q <$> getScope >>= \case
+            C.QName{} : _ -> return v -- NOTE: inverseScopeLookupName puts unqualified names first
+            _             -> return Nothing
         ensureInScope _ = return Nothing
 
   -- Meta variables
